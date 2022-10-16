@@ -137,6 +137,7 @@ local settingsList = {
     swap_page_turn_buttons = {category="none", event="SwapPageTurnButtons", title=_("Invert page turn buttons"), reader=true, condition=Device:hasKeys(), separator=true},
     cycle_highlight_action = {category="none", event="CycleHighlightAction", title=_("Cycle highlight action"), reader=true},
     cycle_highlight_style = {category="none", event="CycleHighlightStyle", title=_("Cycle highlight style"), reader=true},
+    export_current_highlights = {category="none", event="ExportCurrentNotes", title=_("Export current highlights"), reader=true},
     page_jmp = {category="absolutenumber", event="GotoViewRel", min=-100, max=100, title=_("Go %1 pages"), reader=true},
     panel_zoom_toggle = {category="none", event="TogglePanelZoomSetting", title=_("Toggle panel zoom"), paging=true, separator=true},
 
@@ -325,6 +326,7 @@ local dispatcher_menu_order = {
     "zoom_factor_change",
     "cycle_highlight_action",
     "cycle_highlight_style",
+    "export_current_highlights",
     "panel_zoom_toggle",
 
     "visible_pages",

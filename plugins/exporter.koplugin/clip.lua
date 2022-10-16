@@ -1,7 +1,7 @@
+local DataStorage = require("datastorage")
 local DocumentRegistry = require("document/documentregistry")
 local DocSettings = require("docsettings")
 local ReadHistory = require("readhistory")
-local lfs = require("libs/libkoreader-lfs")
 local logger = require("logger")
 local md5 = require("ffi/sha2").md5
 local util = require("util")
@@ -10,7 +10,7 @@ local T = require("ffi/util").template
 
 local MyClipping = {
     my_clippings = "/mnt/us/documents/My Clippings.txt",
-    history_dir = "./history",
+    history_dir = DataStorage:getDataDir() .. "/history",
 }
 
 function MyClipping:new(o)
@@ -56,7 +56,7 @@ function MyClipping:parseMyClippings()
         for line in file:lines() do
             line = line:match("^%s*(.-)%s*$") or ""
             if index == 1 then
-                title, author = self:parseTitleFromPath(line)
+                title, author = self:getTitle(line)
                 clippings[title] = clippings[title] or {
                     title = title,
                     author = author,
@@ -106,7 +106,14 @@ local extensions = {
 -- remove file extensions added by former KOReader
 -- extract author name in "Title(Author)" format
 -- extract author name in "Title - Author" format
-function MyClipping:parseTitleFromPath(line)
+function MyClipping:getTitle(line, path)
+    if path then
+        local props = self:getProps(path)
+        if props and props.title ~= "" then
+            return props.title, props.authors or props.author
+        end
+    end
+
     line = line:match("^%s*(.-)%s*$") or ""
     if extensions[line:sub(-4):lower()] then
         line = line:sub(1, -5)
@@ -279,15 +286,7 @@ function MyClipping:parseHighlight(highlights, bookmarks, book)
             end
         end
     end
-    -- A table to map bookmarks timestamp to index in the bookmarks table
-    -- to facilitate sorting clippings by their position in the book
-    -- since highlights are not sorted by position while bookmarks are.
-    local bookmark_indexes = {}
-    for i, bookmark in ipairs(bookmarks) do
-        bookmark_indexes[self:getTime(bookmark.datetime)] = i
-    end
-    -- Sort clippings by their position in the book.
-    table.sort(book, function(v1, v2) return bookmark_indexes[v1[1].time] > bookmark_indexes[v2[1].time] end)
+    table.sort(book, function(v1, v2) return v1[1].page < v2[1].page end)
 end
 
 function MyClipping:parseHistoryFile(clippings, history_file, doc_file)
@@ -308,7 +307,7 @@ function MyClipping:parseHistoryFile(clippings, history_file, doc_file)
             return
         end
         local _, docname = util.splitFilePathName(doc_file)
-        local title, author = self:parseTitleFromPath(util.splitFileNameSuffix(docname), doc_file)
+        local title, author = self:getTitle(util.splitFileNameSuffix(docname), doc_file)
         clippings[title] = {
             file = doc_file,
             title = title,
@@ -355,39 +354,18 @@ function MyClipping:getProps(file)
     return book_props
 end
 
-local function isEmpty(s)
-    return s == nil or s == ""
-end
-
-function MyClipping:getDocMeta(view)
-    local props = self:getProps(view.document.file)
-    local number_of_pages = view.document.info.number_of_pages
-    local title = props.title
-    local author = props.author or props.authors
-    local path = view.document.file
-    local _, _, docname = path:find(".*/(.*)")
-    local parsed_title, parsed_author = self:parseTitleFromPath(docname)
-    if isEmpty(title) then
-        title = isEmpty(parsed_title) and "Unknown Book" or parsed_title
-    end
-    if isEmpty(author) then
-        author = isEmpty(parsed_author) and "Unknown Author" or parsed_author
-    end
-    return {
-        title = title,
-        -- To make sure that export doesn't fail due to unsupported charchters.
-        exportable_title = parsed_title,
-        author = author,
-        number_of_pages = number_of_pages,
-        file = view.document.file,
-    }
-end
-
 function MyClipping:parseCurrentDoc(view)
     local clippings = {}
-    local meta = self:getDocMeta(view)
-    clippings[meta.title] = meta
-    self:parseHighlight(view.highlight.saved, view.ui.bookmark.bookmarks, clippings[meta.title])
+    local path = view.document.file
+    local _, _, docname = path:find(".*/(.*)")
+    local title, author = self:getTitle(docname, path)
+    clippings[title] = {
+        file = view.document.file,
+        title = title,
+        author = author,
+    }
+    self:parseHighlight(view.highlight.saved, view.ui.bookmark.bookmarks, clippings[title])
+
     return clippings
 end
 
